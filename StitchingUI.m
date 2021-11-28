@@ -22,7 +22,7 @@ function varargout = StitchingUI(varargin)
 
 % Edit the above text to modify the response to help StitchingUI
 
-% Last Modified by GUIDE v2.5 15-Jan-2020 10:06:29
+% Last Modified by GUIDE v2.5 23-Sep-2020 13:42:24
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -54,7 +54,21 @@ function StitchingUI_OpeningFcn(hObject, eventdata, handles, varargin)
 
 % Choose default command line output for StitchingUI
 handles.output = hObject;
-addpath('callback',genpath('common'),'stitching','datastructure');
+% addpath('callback',genpath('common'),'stitching','datastructure');
+if exist('callback','dir')
+    addpath('callback');
+end
+if exist('common','dir')
+    addpath(genpath('common'));
+end
+if exist('stitching','dir')
+    addpath('stitching');
+end
+
+if exist('datastructure','dir')
+    addpath('datastructure');
+end
+
 cameratoolbar('show');
 global stateStack;
 stateStack = CStack;
@@ -77,7 +91,7 @@ function varargout = StitchingUI_OutputFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
  frame = get(gcf,'JavaFrame');
- set(frame,'Maximized',1); 
+%  set(frame,'Maximized',1); 
 % Get default command line output from handles structure
 varargout{1} = handles.output;
 
@@ -236,7 +250,7 @@ function selectIM_push_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-
+clearAxe(handles.axes3);
 % grey out buttons
 handles = greyOutAllbuttonsExceptSelectIm(handles);
 % do real pushCallback
@@ -278,8 +292,8 @@ function export_push_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % make waitbar
-f = uifigure;
-p = uiprogressdlg(f,'Title','Writing image to disk','Indeterminate','on');
+% f = uifigure;
+% p = uiprogressdlg(f,'Title','Writing image to disk','Indeterminate','on');
 % grey buttons
 handles = greyOutAllbuttonsExceptSelectIm(handles);
 set(handles.selectIM_push,'Enable','off');
@@ -288,8 +302,17 @@ handles = exportCallback(handles);
 % activate button
 set(handles.selectIM_push,'Enable','on');
 % destroy waitbar
-close(p);
-close(f);
+% close(p);
+% close(f);
+
+% back to the state of start or Openning.
+fn = fieldnames(handles);
+fnlength = length(fn);
+if fnlength > 169,
+    fields = fn(170:end);
+    handles = rmfield(handles,fields);
+end
+
 guidata(hObject,handles);
 
 
@@ -597,15 +620,65 @@ function autoStitchPush_Callback(hObject, eventdata, handles)
 % hObject    handle to autoStitchPush (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+axes(handles.axes3);
+All=handles.All;
+imshow(All, [min(All(:)) max(All(:))]);
+
 for i=1:length(handles.sorting_panel.Children)
     set(handles.sorting_panel.Children(i),'Enable','off');
 end
 set(handles.selectIM_push,'Enable','off');
 
-handles = findIndexPushCallback(handles);
-handles = fuseCallback(handles);
+Imode = 1;  % Imode is imaging mode 1、2、3 for full body、full spine、lower limbs, respectively!
+%% OLD Veriosn
+% fprintf('Are these PA/AP(frontal) images, yes or no? \n');
+% str = input('Enter (y/n) [y]: ','s');
+% if isempty(str)||strcmp(str,'Y')||strcmp(str,'y'),
+%     Bol = 1;
+% else
+%     Bol = 0;
+% end
+%% New Version
+if strcmp(handles.ViewPosition,'ap')||strcmp(handles.ViewPosition,'AP')
+    Bol = 1;
+else
+    Bol = 0;
+end
+% Iprospect = 'F'; % Iprospect is imaging prospect, F、L for frontal plane、lateral plane respectively��
+handles = AutoStitch(handles,Imode,Bol);
+
+% handles = findIndexPushCallback(handles);
+% handles = fuseCallback(handles); 
+
+%{
+image1_txt = handles.Raw{1}(end-399:end, 1408-399:1408+400);
+try
+    [words,~]= FindNum(image1_txt);
+end
+if exist('words')
+    disp = 'words exist--it is ruler';
+else
+   handles = fuseCallback(handles); 
+end
+%}
 
 set(handles.autoStitchPush,'Enable','off');
-set(handles.export_push,'Enable','on');
-set(handles.rollback_push,'Enable','on');
+set(handles.export_push,'Enable','off');
+set(handles.rollback_push,'Enable','off');
+set(handles.selectIM_push,'Enable','on');
 guidata(hObject,handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function figure1_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to figure1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+
+% --- If Enable == 'on', executes on mouse press in 5 pixel border.
+% --- Otherwise, executes on mouse press in 5 pixel border or over rollback_push.
+function rollback_push_ButtonDownFcn(hObject, eventdata, handles)
+% hObject    handle to rollback_push (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
